@@ -64,7 +64,7 @@ input[type=text]:focus,select:focus{border-color:var(--red);background:#fff;box-
   <div class="body">
     <label for="rack">Harfler <span style="text-transform:none;letter-spacing:0;font-weight:500">(joker için ? veya + Joker düğmesi, en fazla 3)</span></label>
     <div class="rackrow">
-      <input type="text" id="rack" maxlength="20" placeholder="örn. kitaplık veya kal?m" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <input type="text" id="rack" maxlength="20" placeholder="örn. namindala veya kal?m" autocomplete="off" autocapitalize="off" spellcheck="false">
       <button type="button" class="clr" id="jk" title="Joker ekle">+ Joker</button>
       <button type="button" class="clr" id="clr">Temizle</button>
     </div>
@@ -92,16 +92,24 @@ const low=s=>s.replace(/İ/g,'i').replace(/I/g,'ı').toLowerCase().replace(/â/g
 const letters=s=>[...low(s)].filter(c=>c in IX).join('');
 const rackClean=s=>[...low(s).replace(/[ *_]/g,'?')].filter(c=>c in IX||c==='?').join('');
 const patClean=s=>[...low(s).replace(/[ *_]/g,'?')].filter(c=>c in IX||c==='?').join('');
-const STEP=150;let W=[],ready=false,shown=STEP,timer,last=[];
+const STEP=150;let W=[],ready=false,failed='',shown=STEP,timer,last=[];
 
 for(let i=2;i<=15;i++)$('len').insertAdjacentHTML('beforeend',`<option value="${i}">${i} harf</option>`);
 
-fetch('kelimeler.txt').then(r=>{if(!r.ok)throw 0;return r.text()})
- .then(t=>{W=t.split('\n');ready=true;run()})
- .catch(()=>{$('res').innerHTML='<div class="empty">Sözlük yüklenemedi. Sayfayı yenileyip tekrar deneyin.</div>'});
+function load(){
+  failed='';ready=false;
+  fetch('kelimeler.txt').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.text()})
+   .then(t=>{W=t.split('\n').filter(Boolean);if(W.length<1000)throw new Error('Dosya boş veya eksik');ready=true;run()})
+   .catch(e=>{failed=location.protocol==='file:'?'Dosya doğrudan bilgisayardan açıldı. Tarayıcı sözlüğü okuyamaz; GitHub Pages adresinden veya yerel sunucudan açın.':'Sözlük dosyası (kelimeler.txt) yüklenemedi ('+(e.message||'ağ hatası')+'). Dosyanın index.html ile aynı klasörde olduğundan emin olun.';run()});
+}
+function showFail(){
+  const u=new URL('kelimeler.txt',location.href).href;
+  $('res').innerHTML=`<div class="empty">${failed}<br><a href="${u}" target="_blank" rel="noopener" style="color:#e12e2e">${u}</a><br><button class="ex" id="retry">Tekrar dene</button></div>`;
+}
 
 function run(reset){
   if(reset)shown=STEP;
+  if(failed){showFail();return}
   const rc=rackClean($('rack').value);let jk=0;const ls=[];
   for(const c of rc){c==='?'?jk++:ls.push(c)}
   const over=jk>3;jk=Math.min(jk,3);
@@ -110,7 +118,7 @@ function run(reset){
   const n=ls.length+jk,L=+$('len').value||0,pt=patClean($('pat').value),st=letters($('st').value),en=letters($('en').value),ct=letters($('ct').value),ex=[...letters($('ex').value)],all=$('all').checked;
   const re=pt?new RegExp('^'+pt.replace(/\?/g,'.')+'$'):null;
   if(!n&&!L&&!pt&&!st&&!en&&!ct){
-    $('res').innerHTML='<div class="empty">Harflerinizi yukarıya yazın. Örnekler: <button class="ex" data-ex="kitaplık">kitaplık</button> <button class="ex" data-ex="kal?m">kal?m</button> <button class="ex" data-ex="elma?">elma?</button></div>';return}
+    $('res').innerHTML='<div class="empty">Harflerinizi yukarıya yazın. Örnekler: <button class="ex" data-ex="namindala">namindala</button> <button class="ex" data-ex="kal?m">kal?m</button> <button class="ex" data-ex="elma?">elma?</button></div>';return}
   if(!ready){$('res').innerHTML='<div class="empty">Sözlük yükleniyor…</div>';return}
   const base=new Uint8Array(29),c=new Uint8Array(29),out=[];
   ls.forEach(x=>base[IX[x]]++);
@@ -149,13 +157,14 @@ $('jk').onclick=()=>{const v=$('rack').value;if((v.match(/\?/g)||[]).length<3){$
 $('clr').onclick=()=>{['rack','pat','st','en','ct','ex'].forEach(id=>$(id).value='');$('len').value='';$('all').checked=false;run(true)};
 $('res').addEventListener('click',e=>{
   const x=e.target.closest('[data-ex]');if(x){$('rack').value=x.dataset.ex;run(true);return}
-  if(e.target.id==='more'){shown+=STEP;render()}});
+  if(e.target.id==='more'){shown+=STEP;render()}
+  if(e.target.id==='retry'){$('res').innerHTML='<div class="empty">Sözlük yükleniyor…</div>';load()}});
 
 function sendHeight(){try{parent.postMessage({frameHeight:Math.ceil(document.querySelector('.tool').getBoundingClientRect().height)+12},'*')}catch(e){}}
 window.addEventListener('load',()=>{sendHeight();setTimeout(sendHeight,300)});
 window.addEventListener('resize',sendHeight);
 if(window.ResizeObserver)new ResizeObserver(sendHeight).observe(document.querySelector('.tool'));
-run();
+load();run();
 </script>
 </body>
 </html>
